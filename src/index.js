@@ -5,6 +5,7 @@ const rtpPath = path.resolve(__dirname, '../');
 
 
 exports.activate = async (context) => {
+  let {logger} = context;
   await nvim.command(`source ${rtpPath}/plugin/vim_dadbod_completion.vim`);
   await nvim.command(`source ${rtpPath}/autoload/vim_dadbod_completion.vim`);
   await nvim.command(`source ${rtpPath}/autoload/vim_dadbod_completion/schemas.vim`);
@@ -33,7 +34,7 @@ exports.activate = async (context) => {
       const isTriggerCharacter = this.getConfig('triggerCharacters').includes(triggerCharacter);
       let base = isTriggerCharacter ? '' : input;
       const items = await nvim.call('vim_dadbod_completion#omni', [0, base]);
-
+      logger.info(items);
       return { items };
     },
   };
