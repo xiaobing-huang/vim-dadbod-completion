@@ -34,7 +34,9 @@ function! vim_dadbod_completion#omni(findstart, base)
   let buf = s:buffers[bufnr]
   let s:buffers[bufnr].aliases = vim_dadbod_completion#alias_parser#parse(bufnr, s:cache[buf.db].tables)
 
-  let table_scope_match = matchlist(line, '"\?\(\w\+\)"\?\."\?\w*"\?$')
+  "let table_scope_match = matchlist(line, '"\?\(\w\+\)"\?\."\?\w*"\?$')
+  " For hana, the table name could be like: com.sql.test::table
+  let table_scope_match = matchlist(line, '"\?\(\w\+[a-zA-Z.:]*\)"\?\."\?\w*"\?$')
   let table_scope = s:get_table_scope(buf, get(table_scope_match, 1, ''))
   let buffer_table_scope = s:get_table_scope(buf, buf.table)
 

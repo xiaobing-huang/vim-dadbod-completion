@@ -3,9 +3,9 @@ let s:query = s:base_column_query.' order by column_name asc'
 let s:count_query = 'select count(*) as total from information_schema.columns'
 let s:table_column_query = s:base_column_query.' where table_name={db_tbl_name}'
 let s:hana_base_query = 'select table_name,column_name from sys.columns'
-let s:hana_query = s:hana_base_query . ' order by column_name asc'
-let s:hana_count_query = 'select count(*) as total from sys.columns where schema_name = current_schema'
-let s:hana_table_column_query = s:hana_base_query . ' where table_name={db_tbl_name} and schema_name = current_schema'
+let s:hana_query = "select '' from dummy"
+let s:hana_count_query = 'select 1 as total from dummy'
+let s:hana_table_column_query = s:hana_base_query . ' where table_name={db_tbl_name}'
 
 function! s:map_and_filter(delimiter, list) abort
   return filter(
@@ -51,7 +51,7 @@ let s:postgres = {
 
 let s:schemas = {
       \ 'postgres': s:postgres,
-			\ 'hdbsql': s:hdbsql,
+      \ 'hdbsql': s:hdbsql,
       \ 'postgresql': s:postgres,
       \ 'mysql': {
       \   'column_query': printf('-e "%s"', s:query),
