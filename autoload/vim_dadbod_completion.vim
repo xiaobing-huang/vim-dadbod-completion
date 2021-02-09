@@ -1,7 +1,11 @@
 let s:cache = {}
 let s:buffers = {}
 
-let s:trigger_rgx = '\(\.\|"\)$'
+let s:quotes = vim_dadbod_completion#schemas#get_quotes_rgx()
+let s:trigger_rgx = printf('\(%s\|\.\)$', s:quotes.open)
+let s:findstart_rgx = printf('\(^\|\s\+\|\.\|(\|%s\)\@<=\w\+\(%s\)\?$', s:quotes.open, s:quotes.close)
+let s:table_scope_rgx = printf('\(%s\)\?\(\w\+\)\(%s\)\?\.\(%s\)\?\w*\(%s\)\?$', s:quotes.open, s:quotes.close, s:quotes.open, s:quotes.close)
+let s:filter_rgx = printf('^\(%s\)\?', s:quotes.open)
 let s:mark = get(g:, 'vim_dadbod_completion_mark', '[DB]')
 
 function! vim_dadbod_completion#omni(findstart, base)
@@ -12,7 +16,7 @@ function! vim_dadbod_completion#omni(findstart, base)
     if trigger_char > -1
       return trigger_char + 1
     endif
-    return match(line, '\(\s\+\|\.\)\@<="\?\w\+"\?$')
+    return match(line, s:findstart_rgx)
   endif
 
   let is_trigger_char = current_char =~? s:trigger_rgx
@@ -34,11 +38,10 @@ function! vim_dadbod_completion#omni(findstart, base)
   let buf = s:buffers[bufnr]
   let s:buffers[bufnr].aliases = vim_dadbod_completion#alias_parser#parse(bufnr, s:cache[buf.db].tables)
 
-  "let table_scope_match = matchlist(line, '"\?\(\w\+\)"\?\."\?\w*"\?$')
-  " For hana, the table name could be like: com.sql.test::table
-  let table_scope_match = matchlist(line, '"\?\(\w\+[a-zA-Z.:]*\)"\?\."\?\w*"\?$')
-  let table_scope = s:get_table_scope(buf, get(table_scope_match, 1, ''))
-  let buffer_table_scope = s:get_table_scope(buf, buf.table)
+  let table_scope_match = get(matchlist(line, s:table_scope_rgx), 2, '')
+  let table_scope = s:get_scope(buf, table_scope_match, 'table')
+  let buffer_table_scope = s:get_scope(buf, buf.table, 'table')
+  let schema_scope = s:get_scope(buf, table_scope_match, 'schema')
 
   let cache_db = s:cache[buf.db]
 
@@ -46,52 +49,91 @@ function! vim_dadbod_completion#omni(findstart, base)
   let schemas = []
   let aliases = []
   let columns = []
+  let reserved_words = []
+  let bind_params = []
+  let functions = []
   let should_filter = !(empty(a:base) && is_trigger_char)
+  let bind_params_match = match(line, '[[:blank:]]*:\w*$') > -1
 
-  if empty(table_scope)
-    let schemas = copy(cache_db.schemas)
-    if should_filter
-      call filter(schemas, 'v:val =~? ''^"\?''.a:base')
-    endif
-    call map(schemas, function('s:map_item', ['string', current_char, 'schema']))
+  if bind_params_match && exists('b:dbui_bind_params')
+    for [param_name, param_val] in items(b:dbui_bind_params)
+      call add(bind_params, {
+            \ 'word': param_name[1:],
+            \ 'abbr': param_name,
+            \ 'menu': s:mark,
+            \ 'info': param_val
+            \ })
+    endfor
+  endif
 
+  if empty(table_scope) && empty(schema_scope)
     let tables = copy(cache_db.tables)
     if should_filter
-      call filter(tables, 'v:val =~? ''^"\?''.a:base')
+      call filter(tables, 'v:val =~? s:filter_rgx.a:base')
     endif
-    call map(tables, function('s:map_item', ['string', current_char, 'table']))
+    call map(tables, function('s:map_item', ['string', 'table', 'T']))
+
+    let schemas = keys(cache_db.schemas)
+    if should_filter
+      call filter(schemas, 'v:val =~? s:filter_rgx.a:base')
+    endif
+    call map(schemas, function('s:map_item', ['string', 'schema', 'S']))
 
     let aliases = items(s:buffers[bufnr].aliases)
     if should_filter
-      call filter(aliases, 'v:val[1] =~? ''^"\?''.a:base')
+      call filter(aliases, 'v:val[1] =~? s:filter_rgx.a:base')
     endif
-    call map(aliases, function('s:map_item', ['list', current_char, 'alias for table %s']))
+    call map(aliases, function('s:map_item', ['list', 'alias for table %s', 'A']))
+
+    if !is_trigger_char
+      let reserved_words = copy(vim_dadbod_completion#reserved_keywords#get())
+      if !empty(a:base)
+        call filter(reserved_words, 'v:val =~? ''^''.a:base')
+      endif
+      call map(reserved_words, {i,word -> {'word': word, 'abbr': word, 'menu': s:mark, 'info': 'SQL reserved word', 'kind': 'R' }})
+    endif
+
+    let functions = copy(cache_db.functions)
+    if !empty(a:base) && !is_trigger_char
+      call filter(functions, 'v:val =~? ''^''.a:base')
+    endif
+
+    call map(functions, {i,fn -> {'word': fn, 'abbr': fn, 'menu': s:mark, 'info': 'Function', 'kind': 'F' }})
+  endif
+
+  if !empty(schema_scope)
+    let tables = copy(cache_db.schemas[schema_scope])
+    if should_filter
+      call filter(tables, 'v:val =~? s:filter_rgx.a:base')
+    endif
+    call map(tables, function('s:map_item', ['string', 'table', 'T']))
   endif
 
   if !empty(table_scope)
     let columns = s:get_table_scope_columns(buf.db, table_scope)
   elseif !empty(buffer_table_scope)
     let columns = s:get_table_scope_columns(buf.db, buffer_table_scope)
-  elseif !cache_db.fetch_columns_by_table
+  elseif !cache_db.fetch_columns_by_table && empty(schema_scope)
     let columns = copy(cache_db.columns)
   endif
 
   if should_filter
-    call filter(columns, 'v:val[1] =~? ''^"\?''.a:base')
+    call filter(columns, 'v:val[1] =~? s:filter_rgx.a:base')
   endif
 
-  call map(columns, function('s:map_item', ['list', current_char, '%s table column']))
+  call map(columns, function('s:map_item', ['list', '%s table column', 'C']))
 
-  return schemas + tables + aliases + columns
+  return bind_params + schemas + tables + aliases + columns + reserved_words + functions
 endfunction
 
-function! s:map_item(type, current_char, info_val, index, item) abort
+function! s:map_item(type, info_val, kind, index, item) abort
   let word = a:type ==? 'string' ? a:item : a:item[1]
   let info = a:type ==? 'string' ? a:info_val : printf(a:info_val, a:item[0])
   return {
-        \ 'word': s:quote(word, a:current_char),
+        \ 'word': s:quote(word),
         \ 'abbr': word,
         \ 'menu': s:mark,
+        \ 'kind': a:kind,
         \ 'info': info,
         \ }
 endfunction
@@ -119,7 +161,6 @@ function! s:save_to_cache(bufnr, db, table, dbui) abort
   endif
 
   let tables = []
-  let schemas = []
   if !has_key(s:buffers, a:bufnr)
     let s:buffers[a:bufnr] = {}
   endif
@@ -132,7 +173,6 @@ function! s:save_to_cache(bufnr, db, table, dbui) abort
     let s:buffers[a:bufnr].scheme = a:dbui.scheme
     if a:dbui.connected
       let tables = a:dbui.tables
-      let schemas = a:dbui.schemas
     endif
   else
     let parsed = db#url#parse(a:db)
@@ -149,8 +189,9 @@ function! s:save_to_cache(bufnr, db, table, dbui) abort
 
   let s:cache[a:db] = {
         \ 'tables': tables,
-        \ 'schemas': schemas,
+        \ 'schemas': {},
         \ 'columns': [],
+        \ 'functions': [],
         \ 'columns_by_table': {},
         \ 'fetch_columns_by_table': 1,
         \ 'scheme': {}
@@ -165,7 +206,27 @@ function! s:save_to_cache(bufnr, db, table, dbui) abort
   let s:cache[a:db].scheme = scheme
   if !empty(scheme)
     call vim_dadbod_completion#job#run(s:generate_query(a:db, 'count_column_query'), function('s:count_columns_and_cache', [a:db]))
+    if has_key(scheme, 'functions_query')
+      call vim_dadbod_completion#job#run(s:generate_query(a:db, 'functions_query'), function('s:parse_functions', [a:db]))
+    endif
+    if has_key(scheme, 'schemas_query')
+      call vim_dadbod_completion#job#run(s:generate_query(a:db, 'schemas_query'), function('s:parse_schemas', [a:db]))
+    endif
   endif
+endfunction
+
+function! s:parse_functions(db, functions) abort
+  let s:cache[a:db].functions = s:cache[a:db].scheme.functions_parser(a:functions)
+endfunction
+
+function! s:parse_schemas(db, schemas) abort
+  let data = s:cache[a:db].scheme.schemas_parser(a:schemas)
+  for schema in data
+    if !has_key(s:cache[a:db].schemas, schema[0])
+      let s:cache[a:db].schemas[schema[0]] = []
+    endif
+    call add(s:cache[a:db].schemas[schema[0]], schema[1])
+  endfor
 endfunction
 
 function! s:generate_query(db, query_key, ...) abort
@@ -174,7 +235,7 @@ function! s:generate_query(db, query_key, ...) abort
   if a:0 > 0
     let Query = Query(a:1)
   endif
-  return printf('%s %s', base_query, Query)
+  return db#url#parse(a:db).scheme ==? 'oracle' ? printf('%s %s', Query, base_query) : printf('%s %s', base_query, Query)
 endfunction
 
 function! s:count_columns_and_cache(db, count) abort
@@ -227,9 +288,16 @@ function! s:cache_table_columns(db, table_scope, result)
   call vim_dadbod_completion#utils#msg(printf('Fetching columns for table %s...Done.', a:table_scope))
 endfunction
 
-function! s:get_table_scope(buffer, table_scope) abort
+function! s:get_scope(buffer, table_scope, type) abort
   let cache_db = s:cache[a:buffer.db]
   if empty(a:table_scope)
+    return ''
+  endif
+
+  if a:type ==? 'schema'
+    if has_key(cache_db.schemas, a:table_scope)
+      return a:table_scope
+    endif
     return ''
   endif
 
@@ -292,20 +360,22 @@ function! s:get_buffer_db_info(bufnr) abort
         \ }
 endfunction
 
-function! s:quote(val, current_char) abort
+function! s:quote(val) abort
   if !has_key(s:buffers, bufnr('%'))
     return a:val
   endif
   let scheme = vim_dadbod_completion#schemas#get(s:buffers[bufnr('%')].scheme)
-  if empty(scheme) || !scheme.quote
+  if empty(scheme) || !scheme.should_quote(a:val)
     return a:val
   endif
-  if a:val =~# '[A-Z]'
-    let wrap = a:current_char =~? '"$' ? '' : '"'
-    return wrap.a:val.wrap
-  endif
 
-  return a:val
+  let line = getline('.')
+  let [l_quote, r_quote] = scheme.quote
+  let l_quote_esc = escape(l_quote, '[')
+  let r_quote_esc = escape(r_quote, ']')
+  let left_wrap = match(line, l_quote_esc.'\w*\%'.col('.').'c') > -1 ? '' : l_quote
+  let right_wrap = matchstr(line, '\%>'.(col('.') - 1).'c['.r_quote_esc.' \.]') !=? r_quote ? r_quote : ''
+  return left_wrap.a:val.right_wrap
 endfunction
 
 function! vim_dadbod_completion#refresh_deoplete() abort

@@ -5,6 +5,7 @@ Supports:
 * [coc.nvim](https://github.com/neoclide/coc.nvim)
 * [deoplete.nvim](https://github.com/Shougo/deoplete.nvim)
 * [completion-nvim](https://github.com/haorenW1025/completion-nvim)
+* [nvim-compe](https://github.com/hrsh7th/nvim-compe)
 * Built in `omnifunc`
 
 ![coc-db](https://user-images.githubusercontent.com/1782860/78941173-717f6680-7ab7-11ea-91b3-18bf178b3735.gif)
@@ -19,7 +20,7 @@ For [coc.nvim](https://github.com/neoclide/coc.nvim)
 :CocInstall coc-db
 ```
 
-For `deoplete`, `completion-nvim` and `omnifunc`, install it with your favorite plugin manager.
+For `deoplete`, `completion-nvim`, `nvim-compe` and `omnifunc`, install it with your favorite plugin manager.
 
 ```vimL
 function! PackagerInit() abort
@@ -32,16 +33,21 @@ function! PackagerInit() abort
   call packager#add('Shougo/deoplete.nvim')
   "or
   call packager#add('haorenW1025/completion-nvim')
+  "or
+  call packager#add('hrsh7th/nvim-compe')
 endfunction
 
 " For built in omnifunc
 autocmd FileType sql setlocal omnifunc=vim_dadbod_completion#omni
 
+" hrsh7th/nvim-compe
+let g:compe.source.vim_dadbod_completion = v:true
+
 " For completion-nvim
 augroup completion
   autocmd!
   autocmd BufEnter * lua require'completion'.on_attach()
-  autocmd FileType sql let g:completion_trigger_character = ['.', '"']
+  autocmd FileType sql let g:completion_trigger_character = ['.', '"', '`', '[']
 augroup END
 
 " Source is automatically added, you just need to include it in the chain complete list
@@ -49,7 +55,7 @@ let g:completion_chain_complete_list = {
     \   'sql': [
     \    {'complete_items': ['vim-dadbod-completion']},
     \   ],
-    \ ]}
+    \ }
 " Make sure `substring` is part of this list. Other items are optional for this completion source
 let g:completion_matching_strategy_list = ['exact', 'substring']
 " Useful if there's a lot of camel case items
@@ -58,7 +64,7 @@ let g:completion_matching_ignore_case = 1
 
 ## Features
 * Autocomplete table names, with automatic quoting where needed. Works for all schemes that [vim-dadbod](https://github.com/tpope/vim-dadbod) supports.
-* Autocomplete table columns, context aware. Also knows to read aliases (`select * from mytable tbl where tbl.id = 1`). Currently works for `PostgreSQL`, `MySQL` and `SQLserver/MSSQL`.
+* Autocomplete table columns, context aware. Also knows to read aliases (`select * from mytable tbl where tbl.id = 1`). Currently works for `PostgreSQL`, `MySQL`, `Oracle` and `SQLserver/MSSQL`.
 * Out of the box integration with [vim-dadbod-ui](https://github.com/kristijanhusak/vim-dadbod-ui)
 
 ## How it works

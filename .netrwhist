@@ -1,0 +1,12 @@
+let g:netrw_dirhistmax  =10
+let g:netrw_dirhistcnt =0
+let g:netrw_dirhist_0='/Users/i074455/Projects/GitHub/Go-MaD'
+let g:netrw_dirhist_9='/Users/i074455/Projects/GitHub/Go-MaD/db'
+let g:netrw_dirhist_8='/Users/i074455/Projects/GitHub/Go-MaD'
+let g:netrw_dirhist_7='/Users/i074455/Projects/GitHub/Go-MaD/db'
+let g:netrw_dirhist_6='/Users/i074455/Projects/GitHub/Go-MaD'
+let g:netrw_dirhist_5='/Users/i074455/Projects/GitHub'
+let g:netrw_dirhist_4='/Users/i074455/Projects/GitHub/Go-MaD'
+let g:netrw_dirhist_3='/Users/i074455/Projects/GitHub/Go-MaD/approuter'
+let g:netrw_dirhist_2='/Users/i074455/Projects/GitHub/Go-MaD'
+let g:netrw_dirhist_1='/Users/i074455/Projects/GitHub/cappt'
