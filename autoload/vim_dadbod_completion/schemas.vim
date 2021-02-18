@@ -4,8 +4,9 @@ let s:schema_query = 'select table_schema,table_name from information_schema.col
 let s:count_query = 'select count(*) as total from information_schema.columns'
 let s:table_column_query = s:base_column_query.' where table_name={db_tbl_name}'
 let s:hana_base_query = 'select table_name,column_name from sys.columns'
-let s:hana_query = "select '' from dummy"
-let s:hana_count_query = 'select 1 as total from dummy'
+let s:hana_query = "select distinct table_name, column_name from table_columns"
+let s:hana_schema_query = 'select distinct schema_name, table_name from m_tables group by schema_name, table_name'
+let s:hana_count_query = 'select count(*) as total from table_columns'
 let s:hana_table_column_query = s:hana_base_query . ' where table_name={db_tbl_name}'
 let s:reserved_words = vim_dadbod_completion#reserved_keywords#get_as_dict()
 let s:quote_rules = {
@@ -58,9 +59,12 @@ let s:hdbsql = {
       \ 'column_query': printf('-j "%s"', s:hana_query),
       \ 'count_column_query': printf('-j "%s"', s:hana_count_query),
       \ 'table_column_query': {table -> printf('-j "%s"', substitute(s:hana_table_column_query, '{db_tbl_name}', "'".table."'", ''))},
-      \ 'quote': 1,
+      \ 'schemas_query': printf('-j "%s"', s:hana_schema_query),
+      \ 'schemas_parser': function('s:hana_map', [',']),
+      \ 'quote': ['"', '"'],
+      \ 'should_quote': function('s:should_quote', [['camelcase', 'reserved_word', 'space']]),
       \ 'column_parser': function('s:hana_map', [',']),
-      \ 'count_parser': function('s:hana_count_parser', [1])
+      \ 'count_parser': function('s:hana_count_parser', [0])
       \ }
 
 

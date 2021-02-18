@@ -34,7 +34,7 @@ exports.activate = async (context) => {
       const isTriggerCharacter = this.getConfig('triggerCharacters').includes(triggerCharacter);
       let base = isTriggerCharacter ? '' : input;
       const items = await nvim.call('vim_dadbod_completion#omni', [0, base]);
-      logger.info(items);
+
       return { items };
     },
   };
